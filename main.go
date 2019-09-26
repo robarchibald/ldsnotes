@@ -99,25 +99,29 @@ func getReference(ref string) string {
 	if len(refs) > 1 {
 		switch refs[1] {
 		case "scriptures":
-			return getScripture(refs[2:])
-		case "general-conference":
-			return getConference(refs[2:])
+			volume, book, chapter, verse := parseRefs(refs[2:])
+			return fmt.Sprintf("%s %s:%s", getBook(volume, book), chapter, getVerse(verse))
+		case "general-conference", "ensign":
+			year, month, title, _ := parseRefs(refs[2:])
+			return fmt.Sprintf("%s (%s %s-%s)", formatTitle(title), refs[1], formatMonth(month), year)
+		case "manual":
+			volume, page, _, paragraph := parseRefs(refs[2:])
+			return fmt.Sprintf("%s (%s:%s)", formatTitle(volume), page, getVerse(paragraph))
 		}
 	}
 	return ref
 }
 
-func getScripture(refs []string) string {
-	var volume, book, chapterVerse, chapter, verse string
-	getValues(refs, &volume, &book, &chapterVerse)
-	getValues(strings.Split(chapterVerse, "."), &chapter, &verse)
-	return fmt.Sprintf("%s %s:%s", getBook(volume, book), chapter, verse)
-}
-
-func getConference(refs []string) string {
-	var year, month, title string
-	getValues(refs, &year, &month, &title)
-	return fmt.Sprintf("%s (%s %s)", formatTitle(title), formatMonth(month), year)
+func parseRefs(refs []string) (string, string, string, string) {
+	var major, minor, sectionParagraph, section, paragraph string
+	getValues(refs, &major, &minor, &sectionParagraph)
+	if sectionParagraph == "" && minor != "" {
+		getValues(strings.Split(minor, "."), &minor, &paragraph)
+		section = "1"
+	} else {
+		getValues(strings.Split(sectionParagraph, "."), &section, &paragraph)
+	}
+	return major, minor, section, paragraph
 }
 
 func formatTitle(title string) string {
@@ -134,10 +138,30 @@ func formatTitle(title string) string {
 
 func formatMonth(month string) string {
 	switch month {
+	case "1", "01":
+		return "Jan"
+	case "2", "02":
+		return "Feb"
+	case "3", "03":
+		return "Mar"
+	case "4", "04":
+		return "Apr"
+	case "5", "05":
+		return "May"
+	case "6", "06":
+		return "Jun"
+	case "7", "07":
+		return "Jul"
+	case "8", "08":
+		return "Aug"
+	case "9", "09":
+		return "Sep"
 	case "10":
 		return "Oct"
-	case "4":
-		return "Apr"
+	case "11":
+		return "Nov"
+	case "12":
+		return "Dec"
 	default:
 		return month
 	}
@@ -153,6 +177,8 @@ func getBook(volume, book string) string {
 	switch volume {
 	case "bofm":
 		return getBOMBook(book)
+	case "dc-testament":
+		return "D&C"
 	}
 	return strings.Title(book)
 }
@@ -180,4 +206,11 @@ func getBOMBook(book string) string {
 	default:
 		return strings.Title(book)
 	}
+}
+
+func getVerse(paragraph string) string {
+	if len(paragraph) == 0 || paragraph[0] != 'p' {
+		return paragraph
+	}
+	return paragraph[1:]
 }
