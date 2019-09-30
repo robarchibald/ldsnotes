@@ -5,9 +5,114 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/EndFirstCorp/onedb"
+	"github.com/EndFirstCorp/onedb/pgx"
 )
+
+var bom = map[string]string{
+	"introduction": "Introduction to the Book of Mormon",
+	"three":        "Testimony of Three Witnesses",
+	"1-ne":         "1 Nephi",
+	"2-ne":         "2 Nephi",
+	"jacob":        "Jacob",
+	"enos":         "Enos",
+	"jarom":        "Jarom",
+	"omni":         "Omni",
+	"w-of-m":       "Words of Mormon",
+	"mosiah":       "Mosiah",
+	"alma":         "Alma",
+	"hel":          "Helaman",
+	"3-ne":         "3 Nephi",
+	"4-ne":         "4 Nephi",
+	"morm":         "Mormon",
+	"ether":        "Ether",
+	"moro":         "Moroni",
+}
+
+var nt = map[string]string{
+	"matt":   "Matthew",
+	"mark":   "Mark",
+	"luke":   "Luke",
+	"john":   "John",
+	"acts":   "Acts",
+	"rom":    "Romans",
+	"1-cor":  "1 Corinthians",
+	"2-cor":  "2 Corinthians",
+	"gal":    "Galatians",
+	"eph":    "Ephesians",
+	"philip": "Philippians",
+	"col":    "Colossians",
+	"1-thes": "1 Thessalonians",
+	"2-thes": "2 Thessalonians",
+	"1-tim":  "1 Timothy",
+	"2-tim":  "2 Timothy",
+	"titus":  "Titus",
+	"philem": "Philemon",
+	"heb":    "Hebrews",
+	"james":  "James",
+	"1-pet":  "1 Peter",
+	"2-pet":  "2 Peter",
+	"1-jn":   "1 John",
+	"2-jn":   "2 John",
+	"3-jn":   "3 John",
+	"jude":   "Jude",
+	"rev":    "Revelation",
+}
+
+var ot = map[string]string{
+	"gen":   "Genesis",
+	"ex":    "Exodus",
+	"lev":   "Leviticus",
+	"num":   "Numbers",
+	"deut":  "Deuteronomy",
+	"josh":  "Joshua",
+	"judg":  "Judges",
+	"ruth":  "Ruth",
+	"1-sam": "1 Samuel",
+	"2-sam": "2 Samuel",
+	"1-kgs": "1 Kings",
+	"2-kgs": "2 Kings",
+	"1-chr": "1 Chronicles",
+	"2-chr": "2 Chronicles",
+	"ezra":  "Ezra",
+	"neh":   "Nehemiah",
+	"esth":  "Esther",
+	"job":   "Job",
+	"ps":    "Psalms",
+	"prov":  "Proverbs",
+	"eccl":  "Ecclesiastes",
+	"song":  "Song of Solomon",
+	"isa":   "Isaiah",
+	"jer":   "Jeremiah",
+	"lam":   "Lamentations",
+	"ezek":  "Ezekial",
+	"dan":   "Daniel",
+	"hosea": "Hosea",
+	"joel":  "Joel",
+	"amos":  "Amos",
+	"obad":  "Obadiah",
+	"jonah": "Jonah",
+	"micah": "Micah",
+	"nahum": "Nahum",
+	"hab":   "Habakkuk",
+	"zeph":  "Zephaniah",
+	"hag":   "Haggai",
+	"zech":  "Zechariah",
+	"mal":   "Malachi",
+}
+
+var pgp = map[string]string{
+	"introduction": "Introduction to the Pearl of Great Price",
+	"moses":        "Moses",
+	"abr":          "Abraham",
+	"js-m":         "Joseph Smith--Matthew",
+	"js-h":         "Joseph Smith--History",
+	"a-of-f":       "Articles of Faith",
+}
 
 type note struct {
 	ID             string    `json:"id"`
@@ -56,6 +161,12 @@ func main() {
 	}
 	defer f.Close()
 
+	db, err := pgx.NewPgx("localhost", 5432, "postgres", "", "scriptures")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+
 	w, err := os.Create("out.html")
 	if err != nil {
 		log.Fatal(err)
@@ -74,9 +185,9 @@ func main() {
 <body>
 <table>
 <tr>
-	<td>Tags</td>
-	<td>Reference</td>
-	<td>Note</td>
+	<td width="100">Tags</td>
+	<td width="50%">Reference</td>
+	<td width="50%">Note</td>
 </tr>`)
 	for _, note := range result {
 		uri := note.URI
@@ -88,19 +199,41 @@ func main() {
 	<td>%v</td>
 	<td>%s</td>
 	<td>%s</td>
-</tr>`+"\n", note.Tags, getReference(uri), note.Note.Content))
+</tr>`+"\n", note.Tags, getReference(uri, db), note.Note.Content))
 	}
 	w.WriteString(`
 </table></body></html>`)
 }
 
-func getReference(ref string) string {
+const query = `SELECT v.scripture_text 
+FROM verses v 
+JOIN chapters c ON v.chapter_id = c.id 
+JOIN books b ON c.book_id = b.id 
+JOIN volumes vo ON b.volume_id = vo.id 
+WHERE b.book_title = $1 and c.chapter_number = $2 and v.verse_number = $3;`
+
+func getText(db pgx.PGXer, book string, chapter, verse int) (string, error) {
+	var text string
+	return text, db.QueryValues(onedb.NewQuery(query, book, chapter, verse), &text)
+}
+
+func getReference(ref string, db pgx.PGXer) string {
 	refs := strings.Split(ref, "/")
 	if len(refs) > 1 {
 		switch refs[1] {
 		case "scriptures":
 			volume, book, chapter, verse := parseRefs(refs[2:])
-			return fmt.Sprintf("%s %s:%s", getBook(volume, book), chapter, getVerse(verse))
+			if newBook := getBook(volume, book); newBook != "" {
+				book = newBook
+			}
+			verse = getVerse(verse)
+			verseInt, _ := strconv.Atoi(verse)
+			chapterInt, _ := strconv.Atoi(chapter)
+			text, err := getText(db, book, chapterInt, verseInt)
+			if err != nil {
+				fmt.Println(book, chapterInt, verseInt, err)
+			}
+			return fmt.Sprintf("%s %s:%s\n%s", book, chapter, verse, text)
 		case "general-conference", "ensign":
 			year, month, title, _ := parseRefs(refs[2:])
 			return fmt.Sprintf("%s (%s %s-%s)", formatTitle(title), refs[1], formatMonth(month), year)
@@ -176,36 +309,17 @@ func getValues(refs []string, value ...*string) {
 func getBook(volume, book string) string {
 	switch volume {
 	case "bofm":
-		return getBOMBook(book)
+		return bom[book]
 	case "dc-testament":
-		return "D&C"
+		return "Doctrine and Covenants"
+	case "nt":
+		return nt[book]
+	case "ot":
+		return ot[book]
+	case "pgp":
+		return pgp[book]
 	}
 	return strings.Title(book)
-}
-
-func getBOMBook(book string) string {
-	switch book {
-	case "moro":
-		return "Moroni"
-	case "morm":
-		return "Mormon"
-	case "4-ne":
-		return "4 Nephi"
-	case "3-ne":
-		return "3 Nephi"
-	case "hel":
-		return "Helaman"
-	case "w-of-m":
-		return "Words of Mormon"
-	case "2-ne":
-		return "2 Nephi"
-	case "1-ne":
-		return "1 Nephi"
-	case "three":
-		return "Testimony of Three Witnesses"
-	default:
-		return strings.Title(book)
-	}
 }
 
 func getVerse(paragraph string) string {
