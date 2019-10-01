@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -13,105 +14,110 @@ import (
 	"github.com/EndFirstCorp/onedb/pgx"
 )
 
-var bom = map[string]string{
-	"introduction": "Introduction to the Book of Mormon",
-	"three":        "Testimony of Three Witnesses",
-	"1-ne":         "1 Nephi",
-	"2-ne":         "2 Nephi",
-	"jacob":        "Jacob",
-	"enos":         "Enos",
-	"jarom":        "Jarom",
-	"omni":         "Omni",
-	"w-of-m":       "Words of Mormon",
-	"mosiah":       "Mosiah",
-	"alma":         "Alma",
-	"hel":          "Helaman",
-	"3-ne":         "3 Nephi",
-	"4-ne":         "4 Nephi",
-	"morm":         "Mormon",
-	"ether":        "Ether",
-	"moro":         "Moroni",
+type sortedBook struct {
+	Book  string
+	Order int
 }
 
-var nt = map[string]string{
-	"matt":   "Matthew",
-	"mark":   "Mark",
-	"luke":   "Luke",
-	"john":   "John",
-	"acts":   "Acts",
-	"rom":    "Romans",
-	"1-cor":  "1 Corinthians",
-	"2-cor":  "2 Corinthians",
-	"gal":    "Galatians",
-	"eph":    "Ephesians",
-	"philip": "Philippians",
-	"col":    "Colossians",
-	"1-thes": "1 Thessalonians",
-	"2-thes": "2 Thessalonians",
-	"1-tim":  "1 Timothy",
-	"2-tim":  "2 Timothy",
-	"titus":  "Titus",
-	"philem": "Philemon",
-	"heb":    "Hebrews",
-	"james":  "James",
-	"1-pet":  "1 Peter",
-	"2-pet":  "2 Peter",
-	"1-jn":   "1 John",
-	"2-jn":   "2 John",
-	"3-jn":   "3 John",
-	"jude":   "Jude",
-	"rev":    "Revelation",
+var bom = map[string]*sortedBook{
+	"introduction": &sortedBook{"Introduction to the Book of Mormon", 101},
+	"three":        &sortedBook{"Testimony of Three Witnesses", 102},
+	"1-ne":         &sortedBook{"1 Nephi", 103},
+	"2-ne":         &sortedBook{"2 Nephi", 104},
+	"jacob":        &sortedBook{"Jacob", 105},
+	"enos":         &sortedBook{"Enos", 106},
+	"jarom":        &sortedBook{"Jarom", 107},
+	"omni":         &sortedBook{"Omni", 108},
+	"w-of-m":       &sortedBook{"Words of Mormon", 109},
+	"mosiah":       &sortedBook{"Mosiah", 110},
+	"alma":         &sortedBook{"Alma", 111},
+	"hel":          &sortedBook{"Helaman", 112},
+	"3-ne":         &sortedBook{"3 Nephi", 113},
+	"4-ne":         &sortedBook{"4 Nephi", 114},
+	"morm":         &sortedBook{"Mormon", 115},
+	"ether":        &sortedBook{"Ether", 116},
+	"moro":         &sortedBook{"Moroni", 117},
 }
 
-var ot = map[string]string{
-	"gen":   "Genesis",
-	"ex":    "Exodus",
-	"lev":   "Leviticus",
-	"num":   "Numbers",
-	"deut":  "Deuteronomy",
-	"josh":  "Joshua",
-	"judg":  "Judges",
-	"ruth":  "Ruth",
-	"1-sam": "1 Samuel",
-	"2-sam": "2 Samuel",
-	"1-kgs": "1 Kings",
-	"2-kgs": "2 Kings",
-	"1-chr": "1 Chronicles",
-	"2-chr": "2 Chronicles",
-	"ezra":  "Ezra",
-	"neh":   "Nehemiah",
-	"esth":  "Esther",
-	"job":   "Job",
-	"ps":    "Psalms",
-	"prov":  "Proverbs",
-	"eccl":  "Ecclesiastes",
-	"song":  "Song of Solomon",
-	"isa":   "Isaiah",
-	"jer":   "Jeremiah",
-	"lam":   "Lamentations",
-	"ezek":  "Ezekial",
-	"dan":   "Daniel",
-	"hosea": "Hosea",
-	"joel":  "Joel",
-	"amos":  "Amos",
-	"obad":  "Obadiah",
-	"jonah": "Jonah",
-	"micah": "Micah",
-	"nahum": "Nahum",
-	"hab":   "Habakkuk",
-	"zeph":  "Zephaniah",
-	"hag":   "Haggai",
-	"zech":  "Zechariah",
-	"mal":   "Malachi",
+var pgp = map[string]*sortedBook{
+	"introduction": &sortedBook{"Introduction to the Pearl of Great Price", 401},
+	"moses":        &sortedBook{"Moses", 402},
+	"abr":          &sortedBook{"Abraham", 403},
+	"js-m":         &sortedBook{"Joseph Smith--Matthew", 404},
+	"js-h":         &sortedBook{"Joseph Smith--History", 405},
+	"a-of-f":       &sortedBook{"Articles of Faith", 406},
 }
 
-var pgp = map[string]string{
-	"introduction": "Introduction to the Pearl of Great Price",
-	"moses":        "Moses",
-	"abr":          "Abraham",
-	"js-m":         "Joseph Smith--Matthew",
-	"js-h":         "Joseph Smith--History",
-	"a-of-f":       "Articles of Faith",
+var nt = map[string]*sortedBook{
+	"matt":   &sortedBook{"Matthew", 501},
+	"mark":   &sortedBook{"Mark", 502},
+	"luke":   &sortedBook{"Luke", 503},
+	"john":   &sortedBook{"John", 504},
+	"acts":   &sortedBook{"Acts", 505},
+	"rom":    &sortedBook{"Romans", 506},
+	"1-cor":  &sortedBook{"1 Corinthians", 507},
+	"2-cor":  &sortedBook{"2 Corinthians", 508},
+	"gal":    &sortedBook{"Galatians", 509},
+	"eph":    &sortedBook{"Ephesians", 510},
+	"philip": &sortedBook{"Philippians", 511},
+	"col":    &sortedBook{"Colossians", 512},
+	"1-thes": &sortedBook{"1 Thessalonians", 513},
+	"2-thes": &sortedBook{"2 Thessalonians", 514},
+	"1-tim":  &sortedBook{"1 Timothy", 515},
+	"2-tim":  &sortedBook{"2 Timothy", 516},
+	"titus":  &sortedBook{"Titus", 517},
+	"philem": &sortedBook{"Philemon", 518},
+	"heb":    &sortedBook{"Hebrews", 519},
+	"james":  &sortedBook{"James", 520},
+	"1-pet":  &sortedBook{"1 Peter", 521},
+	"2-pet":  &sortedBook{"2 Peter", 522},
+	"1-jn":   &sortedBook{"1 John", 523},
+	"2-jn":   &sortedBook{"2 John", 524},
+	"3-jn":   &sortedBook{"3 John", 525},
+	"jude":   &sortedBook{"Jude", 526},
+	"rev":    &sortedBook{"Revelation", 527},
+}
+
+var ot = map[string]*sortedBook{
+	"gen":   &sortedBook{"Genesis", 601},
+	"ex":    &sortedBook{"Exodus", 602},
+	"lev":   &sortedBook{"Leviticus", 603},
+	"num":   &sortedBook{"Numbers", 604},
+	"deut":  &sortedBook{"Deuteronomy", 605},
+	"josh":  &sortedBook{"Joshua", 606},
+	"judg":  &sortedBook{"Judges", 607},
+	"ruth":  &sortedBook{"Ruth", 608},
+	"1-sam": &sortedBook{"1 Samuel", 609},
+	"2-sam": &sortedBook{"2 Samuel", 610},
+	"1-kgs": &sortedBook{"1 Kings", 611},
+	"2-kgs": &sortedBook{"2 Kings", 612},
+	"1-chr": &sortedBook{"1 Chronicles", 613},
+	"2-chr": &sortedBook{"2 Chronicles", 614},
+	"ezra":  &sortedBook{"Ezra", 615},
+	"neh":   &sortedBook{"Nehemiah", 616},
+	"esth":  &sortedBook{"Esther", 617},
+	"job":   &sortedBook{"Job", 618},
+	"ps":    &sortedBook{"Psalms", 619},
+	"prov":  &sortedBook{"Proverbs", 620},
+	"eccl":  &sortedBook{"Ecclesiastes", 621},
+	"song":  &sortedBook{"Song of Solomon", 622},
+	"isa":   &sortedBook{"Isaiah", 623},
+	"jer":   &sortedBook{"Jeremiah", 624},
+	"lam":   &sortedBook{"Lamentations", 625},
+	"ezek":  &sortedBook{"Ezekial", 626},
+	"dan":   &sortedBook{"Daniel", 627},
+	"hosea": &sortedBook{"Hosea", 628},
+	"joel":  &sortedBook{"Joel", 629},
+	"amos":  &sortedBook{"Amos", 630},
+	"obad":  &sortedBook{"Obadiah", 631},
+	"jonah": &sortedBook{"Jonah", 632},
+	"micah": &sortedBook{"Micah", 633},
+	"nahum": &sortedBook{"Nahum", 634},
+	"hab":   &sortedBook{"Habakkuk", 635},
+	"zeph":  &sortedBook{"Zephaniah", 636},
+	"hag":   &sortedBook{"Haggai", 637},
+	"zech":  &sortedBook{"Zechariah", 638},
+	"mal":   &sortedBook{"Malachi", 639},
 }
 
 type note struct {
@@ -154,6 +160,26 @@ type itemRef struct {
 	ID  string `json:"id"`
 }
 
+type simpleNote struct {
+	Notes      string
+	Tags       []string
+	Order      int
+	References []reference
+}
+
+type reference struct {
+	FullReference  string
+	ShortReference string
+	Text           string
+}
+
+const query = `SELECT v.scripture_text 
+FROM verses v 
+JOIN chapters c ON v.chapter_id = c.id 
+JOIN books b ON c.book_id = b.id 
+JOIN volumes vo ON b.volume_id = vo.id 
+WHERE b.book_title = $1 and c.chapter_number = $2 and v.verse_number = $3;`
+
 func main() {
 	f, err := os.Open("lds notes.json")
 	if err != nil {
@@ -177,72 +203,114 @@ func main() {
 	if err := json.NewDecoder(f).Decode(&result); err != nil {
 		log.Fatal(err)
 	}
+
+	simpleNotes := getSimpleNotes(result, db)
+	orderedNotes := orderSimpleNotes(simpleNotes)
+
 	w.WriteString(`<!DOCTYPE html>
 <html>
 <head>
 <title>Rob's notes</title>
 </head>
 <body>
-<table>
+<table border="1" cellPadding="5" cellSpacing="0">
 <tr>
 	<td width="100">Tags</td>
 	<td width="50%">Reference</td>
 	<td width="50%">Note</td>
 </tr>`)
-	for _, note := range result {
-		uri := note.URI
-		if len(note.Highlight.Content) > 0 {
-			uri = note.Highlight.Content[0].URI
-		}
+	for _, note := range orderedNotes {
 		w.WriteString(fmt.Sprintf(`
 <tr>
 	<td>%v</td>
 	<td>%s</td>
 	<td>%s</td>
-</tr>`+"\n", note.Tags, getReference(uri, db), note.Note.Content))
+</tr>`+"\n", note.Tags, formatReferences(note.References), note.Notes))
 	}
 	w.WriteString(`
 </table></body></html>`)
 }
 
-const query = `SELECT v.scripture_text 
-FROM verses v 
-JOIN chapters c ON v.chapter_id = c.id 
-JOIN books b ON c.book_id = b.id 
-JOIN volumes vo ON b.volume_id = vo.id 
-WHERE b.book_title = $1 and c.chapter_number = $2 and v.verse_number = $3;`
+func orderSimpleNotes(notes []simpleNote) []simpleNote {
+	sort.Slice(notes, func(i, j int) bool {
+		return notes[i].Order < notes[j].Order
+	})
+	return notes
+}
 
 func getText(db pgx.PGXer, book string, chapter, verse int) (string, error) {
 	var text string
 	return text, db.QueryValues(onedb.NewQuery(query, book, chapter, verse), &text)
 }
 
-func getReference(ref string, db pgx.PGXer) string {
-	refs := strings.Split(ref, "/")
-	if len(refs) > 1 {
-		switch refs[1] {
-		case "scriptures":
-			volume, book, chapter, verse := parseRefs(refs[2:])
-			if newBook := getBook(volume, book); newBook != "" {
-				book = newBook
-			}
-			verse = getVerse(verse)
-			verseInt, _ := strconv.Atoi(verse)
-			chapterInt, _ := strconv.Atoi(chapter)
-			text, err := getText(db, book, chapterInt, verseInt)
-			if err != nil {
-				fmt.Println(book, chapterInt, verseInt, err)
-			}
-			return fmt.Sprintf("%s %s:%s\n%s", book, chapter, verse, text)
-		case "general-conference", "ensign":
-			year, month, title, _ := parseRefs(refs[2:])
-			return fmt.Sprintf("%s (%s %s-%s)", formatTitle(title), refs[1], formatMonth(month), year)
-		case "manual":
-			volume, page, _, paragraph := parseRefs(refs[2:])
-			return fmt.Sprintf("%s (%s:%s)", formatTitle(volume), page, getVerse(paragraph))
+func formatReferences(refs []reference) string {
+	var buf strings.Builder
+	for i, ref := range refs {
+		if i == 0 {
+			buf.WriteString(fmt.Sprintf("<b>%s</b> &nbsp;%s", ref.FullReference, ref.Text))
+		} else {
+			buf.WriteString(fmt.Sprintf("<b>%s</b> &nbsp;%s", ref.ShortReference, ref.Text))
+		}
+		if i != len(refs)-1 {
+			buf.WriteString("<br/>")
 		}
 	}
-	return ref
+	return buf.String()
+}
+
+func getSimpleNotes(fullNotes []note, db pgx.PGXer) []simpleNote {
+	notes := []simpleNote{}
+	for _, note := range fullNotes {
+		uris := []string{note.URI}
+		if len(note.Highlight.Content) > 0 {
+			uris = []string{}
+			for _, content := range note.Highlight.Content {
+				uris = append(uris, content.URI)
+			}
+		}
+		notes = append(notes, *newSimpleNote(uris, note.Note.Content, note.Tags, db))
+	}
+	return notes
+}
+
+func newSimpleNote(uris []string, notes string, tags []string, db pgx.PGXer) *simpleNote {
+	note := &simpleNote{Notes: notes, Tags: tags}
+	for i, uri := range uris {
+		var order int
+		refs := strings.Split(uri, "/")
+		if len(refs) > 1 {
+			switch refs[1] {
+			case "scriptures":
+				volume, book, chapter, verse := parseRefs(refs[2:])
+				if newBook := getBook(volume, book); newBook != nil {
+					book = newBook.Book
+					order = newBook.Order
+				}
+				verse = getVerse(verse)
+				verseInt, _ := strconv.Atoi(verse)
+				chapterInt, _ := strconv.Atoi(chapter)
+				text, err := getText(db, book, chapterInt, verseInt)
+				if err != nil {
+					fmt.Println(book, chapterInt, verseInt, err)
+				}
+				note.References = append(note.References, reference{fmt.Sprintf("%s %s:%s", book, chapter, verse), verse, text})
+				if i == 0 {
+					note.Order = order*1000000 + chapterInt*1000 + verseInt
+				}
+			case "general-conference", "ensign":
+				year, month, title, _ := parseRefs(refs[2:])
+				yearInt, _ := strconv.Atoi(year)
+				monthInt, _ := strconv.Atoi(month)
+				note.Order = 2000000 + yearInt*100 + monthInt
+				note.References = append(note.References, reference{fmt.Sprintf("%s (%s %s-%s)", formatTitle(title), refs[1], formatMonth(month), year), "", ""})
+			case "manual":
+				volume, page, _, paragraph := parseRefs(refs[2:])
+				note.Order = 3000000
+				note.References = append(note.References, reference{fmt.Sprintf("%s (%s:%s)", formatTitle(volume), page, getVerse(paragraph)), "", ""})
+			}
+		}
+	}
+	return note
 }
 
 func parseRefs(refs []string) (string, string, string, string) {
@@ -306,12 +374,12 @@ func getValues(refs []string, value ...*string) {
 	}
 }
 
-func getBook(volume, book string) string {
+func getBook(volume, book string) *sortedBook {
 	switch volume {
 	case "bofm":
 		return bom[book]
 	case "dc-testament":
-		return "Doctrine and Covenants"
+		return &sortedBook{"Doctrine and Covenants", 200}
 	case "nt":
 		return nt[book]
 	case "ot":
@@ -319,7 +387,7 @@ func getBook(volume, book string) string {
 	case "pgp":
 		return pgp[book]
 	}
-	return strings.Title(book)
+	return &sortedBook{strings.Title(book), 0}
 }
 
 func getVerse(paragraph string) string {
