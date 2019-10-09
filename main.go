@@ -205,6 +205,7 @@ func main() {
 	}
 
 	simpleNotes := getSimpleNotes(result, db)
+	simpleNotes = filterSimpleNotes("Faith", simpleNotes)
 	orderedNotes := orderSimpleNotes(simpleNotes)
 
 	w.WriteString(`<!DOCTYPE html>
@@ -215,17 +216,15 @@ func main() {
 <body>
 <table border="1" cellPadding="5" cellSpacing="0">
 <tr>
-	<td width="100">Tags</td>
 	<td width="50%">Reference</td>
 	<td width="50%">Note</td>
 </tr>`)
 	for _, note := range orderedNotes {
 		w.WriteString(fmt.Sprintf(`
 <tr>
-	<td>%v</td>
 	<td>%s</td>
 	<td>%s</td>
-</tr>`+"\n", note.Tags, formatReferences(note.References), note.Notes))
+</tr>`+"\n", formatReferences(note.References), note.Notes))
 	}
 	w.WriteString(`
 </table></body></html>`)
@@ -236,6 +235,26 @@ func orderSimpleNotes(notes []simpleNote) []simpleNote {
 		return notes[i].Order < notes[j].Order
 	})
 	return notes
+}
+
+func filterSimpleNotes(tag string, notes []simpleNote) []simpleNote {
+	for i := 0; i < len(notes); i++ {
+		note := &notes[i]
+		if !hasTag(note.Tags, tag) {
+			notes = append(notes[:i], notes[i+1:]...)
+			i--
+		}
+	}
+	return notes
+}
+
+func hasTag(tags []string, find string) bool {
+	for _, tag := range tags {
+		if tag == find {
+			return true
+		}
+	}
+	return false
 }
 
 func getText(db pgx.PGXer, book string, chapter, verse int) (string, error) {
@@ -252,7 +271,7 @@ func formatReferences(refs []reference) string {
 			buf.WriteString(fmt.Sprintf("<b>%s</b> &nbsp;%s", ref.ShortReference, ref.Text))
 		}
 		if i != len(refs)-1 {
-			buf.WriteString("<br/>")
+			buf.WriteString("<br/><br/>")
 		}
 	}
 	return buf.String()
@@ -268,7 +287,8 @@ func getSimpleNotes(fullNotes []note, db pgx.PGXer) []simpleNote {
 				uris = append(uris, content.URI)
 			}
 		}
-		notes = append(notes, *newSimpleNote(uris, note.Note.Content, note.Tags, db))
+		content := strings.ReplaceAll(strings.ReplaceAll(note.Note.Content, "\n", "<br/>"), "\\", "")
+		notes = append(notes, *newSimpleNote(uris, content, note.Tags, db))
 	}
 	return notes
 }
@@ -276,41 +296,60 @@ func getSimpleNotes(fullNotes []note, db pgx.PGXer) []simpleNote {
 func newSimpleNote(uris []string, notes string, tags []string, db pgx.PGXer) *simpleNote {
 	note := &simpleNote{Notes: notes, Tags: tags}
 	for i, uri := range uris {
-		var order int
-		refs := strings.Split(uri, "/")
-		if len(refs) > 1 {
-			switch refs[1] {
-			case "scriptures":
-				volume, book, chapter, verse := parseRefs(refs[2:])
-				if newBook := getBook(volume, book); newBook != nil {
-					book = newBook.Book
-					order = newBook.Order
-				}
-				verse = getVerse(verse)
-				verseInt, _ := strconv.Atoi(verse)
-				chapterInt, _ := strconv.Atoi(chapter)
-				text, err := getText(db, book, chapterInt, verseInt)
-				if err != nil {
-					fmt.Println(book, chapterInt, verseInt, err)
-				}
-				note.References = append(note.References, reference{fmt.Sprintf("%s %s:%s", book, chapter, verse), verse, text})
-				if i == 0 {
-					note.Order = order*1000000 + chapterInt*1000 + verseInt
-				}
-			case "general-conference", "ensign":
-				year, month, title, _ := parseRefs(refs[2:])
-				yearInt, _ := strconv.Atoi(year)
-				monthInt, _ := strconv.Atoi(month)
-				note.Order = 2000000 + yearInt*100 + monthInt
-				note.References = append(note.References, reference{fmt.Sprintf("%s (%s %s-%s)", formatTitle(title), refs[1], formatMonth(month), year), "", ""})
-			case "manual":
-				volume, page, _, paragraph := parseRefs(refs[2:])
-				note.Order = 3000000
-				note.References = append(note.References, reference{fmt.Sprintf("%s (%s:%s)", formatTitle(volume), page, getVerse(paragraph)), "", ""})
-			}
+		reference, order := getReference(uri, db)
+		note.References = append(note.References, *reference)
+		if i == 0 {
+			note.Order = order
 		}
 	}
 	return note
+}
+
+func getReference(uri string, db pgx.PGXer) (*reference, int) {
+	refs := strings.Split(uri, "/")
+	if len(refs) > 1 {
+		switch refs[1] {
+		case "scriptures":
+			return newScriptureReference(refs[2:], db)
+		case "general-conference", "ensign":
+			return newConferenceReference(refs[2:])
+		case "manual":
+			return newManualReference(refs[2:])
+		}
+	}
+	return &reference{FullReference: uri, ShortReference: uri}, 0
+}
+
+func newScriptureReference(refs []string, db pgx.PGXer) (*reference, int) {
+	order := 100 // BOM starts at 100
+	volume, book, chapter, verse := parseRefs(refs)
+	if newBook := getBook(volume, book); newBook != nil {
+		book = newBook.Book
+		order = newBook.Order
+	}
+	verse = getVerse(verse)
+	verseInt, _ := strconv.Atoi(verse)
+	chapterInt, _ := strconv.Atoi(chapter)
+	text, err := getText(db, book, chapterInt, verseInt)
+	if err != nil {
+		fmt.Println(book, chapterInt, verseInt, err)
+	}
+	order = order*1000000 + chapterInt*1000 + verseInt // order starts at 100 million for BOM intro
+	return &reference{fmt.Sprintf("%s %s:%s", book, chapter, verse), verse, text}, order
+}
+
+func newConferenceReference(refs []string) (*reference, int) {
+	year, month, title, _ := parseRefs(refs)
+	yearInt, _ := strconv.Atoi(year)
+	monthInt, _ := strconv.Atoi(month)
+	order := 1000000 + yearInt*100 + monthInt
+	return &reference{fmt.Sprintf("%s (%s %s)", formatTitle(title), formatMonth(monthInt), year), "", ""}, order
+}
+
+func newManualReference(refs []string) (*reference, int) {
+	volume, page, _, paragraph := parseRefs(refs)
+	order := 2000000
+	return &reference{fmt.Sprintf("%s (%s:%s)", formatTitle(volume), page, getVerse(paragraph)), "", ""}, order
 }
 
 func parseRefs(refs []string) (string, string, string, string) {
@@ -337,34 +376,34 @@ func formatTitle(title string) string {
 	return buf.String()
 }
 
-func formatMonth(month string) string {
+func formatMonth(month int) string {
 	switch month {
-	case "1", "01":
+	case 1:
 		return "Jan"
-	case "2", "02":
+	case 2:
 		return "Feb"
-	case "3", "03":
+	case 3:
 		return "Mar"
-	case "4", "04":
+	case 4:
 		return "Apr"
-	case "5", "05":
+	case 5:
 		return "May"
-	case "6", "06":
+	case 6:
 		return "Jun"
-	case "7", "07":
+	case 7:
 		return "Jul"
-	case "8", "08":
+	case 8:
 		return "Aug"
-	case "9", "09":
+	case 9:
 		return "Sep"
-	case "10":
+	case 10:
 		return "Oct"
-	case "11":
+	case 11:
 		return "Nov"
-	case "12":
+	case 12:
 		return "Dec"
 	default:
-		return month
+		return strconv.Itoa(month)
 	}
 }
 
