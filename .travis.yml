@@ -1,0 +1,26 @@
+language: go
+
+go:
+  - tip
+
+before_install:
+  - go get golang.org/x/tools/cmd/cover
+  - go get github.com/mattn/goveralls
+
+script:
+  - |
+    fail=false;
+    for folder in `find $TRAVIS_BUILD_DIR -type f -path "*_test.go" -exec dirname {} \; | sort -u`; do 
+      cd $folder;
+      echo "go test $folder";
+      go test -short -covermode=count -coverprofile=coverage.out;
+      if [[ $? -ne 0 ]]; then fail=true; fi;
+      $HOME/gopath/bin/goveralls -coverprofile=coverage.out -service=travis-ci -repotoken $COVERALLS_TOKEN;
+      echo
+    done;
+    if $fail; then
+      $(exit 1);
+    fi
+
+env:
+  - GO111MODULE=on
