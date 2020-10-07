@@ -35,8 +35,8 @@ func TestGetReference(t *testing.T) {
 
 func TestFilterSimpleNotes(t *testing.T) {
 	if notes := filterSimpleNotes("tag", []simpleNote{
-		simpleNote{Tags: []string{"Faith", "tag"}},
-		simpleNote{Tags: []string{"Other"}},
+		{Tags: []string{"Faith", "tag"}},
+		{Tags: []string{"Other"}},
 	}); len(notes) != 1 {
 		t.Error("Expected to filter to only one note", notes)
 	}
